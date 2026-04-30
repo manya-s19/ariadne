@@ -1,0 +1,7 @@
+# never commit the private key
+atc/atc_private.pem
+
+# python
+__pycache__/
+*.pyc
+.env
