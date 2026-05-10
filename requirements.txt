@@ -2,3 +2,5 @@ cryptography
 fastapi
 uvicorn
 pydantic
+numpy
+filterpy
