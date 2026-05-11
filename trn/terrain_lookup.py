@@ -5,7 +5,7 @@ import math
 DATA_DIR = "trn/EarthData"
 tiles = {}
 
-# SRTMGL1 resolution: 3601 x 3601 points per tile
+# SRTMGL1 resolution: 3601 x 3601 elevation points per tile
 SIZE = 3601
 
 # Load .hgt file and return a 2D numpy array of elevations
@@ -40,7 +40,7 @@ def latlon_to_index(lat, lon):
     return row, col
 
 # Returns terrain elevation in meters for the given latitude and longitude
-# Note - Uses cached SRTM tiles for efficient lookup
+# Note: Uses cached SRTM tiles for efficient lookup
 def get_elevation(lat, lon):
 
     # Coordinate validation
