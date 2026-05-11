@@ -13,26 +13,6 @@ dt = 1      #timestamp (every second)
 a = 0       #(for the sake of MVP) assume flight is cruising
 
 
-# --------------------------------
-# FOR REAL DATA TRACKING PURPOSES
-# --------------------------------
-
-# velocity = acceleration * time (updates every timestep)
-real_v = v_i + a * dt
-print("Real Velocity:", real_v)
-
-
-#kinematics eqn (updates every timestep)
-real_x = x_i + 0.5*(v_i + real_v)*dt
-print("Real Position:", real_x)
-
-#sensor data (updates every timestep)
-irs_bias = np.random.normal(0,0.01)#random (small bias)
-irs_x = real_x + irs_bias
-gps_x = real_x + np.random.normal(0,5)   #gps_noise is randomized, can be unpredictable (for the sake of the MVP)
-trn_x = real_x + np.random.normal(0,2)    #trn_noise is much more stable than gps_noise
-
-
 
 # ---------------------
 # SET UP KALMAN FILTER
@@ -44,20 +24,28 @@ kf = KalmanFilter(dim_x = 2, dim_z = 1)
 #setting up values of position and velocity
 kf.x = np.array([[0.], 
                  [0.]])
-kf.z = gps_x
 
 
-#set up variences for standard deviations       *** values can be altered ***
+
+# -----------------------------
+# SET UP KALMAN FILTER MATRICES
+# -----------------------------
+
+#set up variences for standard deviations               *** values can be altered ***
 position_uncertainty = 10**2        
 velocity_uncertainty = 100**2
-gps_uncertainty = 5**2
-external_acceleration_uncertainty = 0.3**2
+baseline_gps_uncertainty = 5**2
+baseline_external_acceleration_uncertainty = 0.3**2
+
+#update this based on external factors later            *** values can be altered ***
+gps_uncertainty = baseline_gps_uncertainty
+external_acceleration_uncertainty = baseline_external_acceleration_uncertainty
 
 #set up State Covariance Matrix (P) - kalman filter's estimate’s unreliability (position and velocity)
 #[position uncertaintiy, position/velocity relationship], [velocity/position relationship, velocity uncertainty]
 #stnd deviation = sqrt(uncertainty)
 kf.P = np.array([[position_uncertainty, 0.],
-                 [0., velocity_uncertainty]])
+                [0., velocity_uncertainty]])
 
 #set up Measurement Noise Covarience (R) - unreliability of GPS position readings compared to true position
 kf.R = np.array([[gps_uncertainty]])
@@ -67,48 +55,101 @@ kf.Q = Q_discrete_white_noise(2, dt, external_acceleration_uncertainty)
 
 #set up State Transition Matrix (F) - determines next state given current state
 kf.F = np.array([[1., dt],
-                 [0., 1.]])
+                [0., 1.]])
 
 #set up Measurement  (H) - the part of the state the given sensor actually observes
 kf.H = np.array([[1., 0.]])
 
 
-# --------------------------------
-# Kalman Filter Position Estimate
-# --------------------------------
 
-# PREDICT FUNCTION (bayesian prior)
-# Predicts the current position of the plane
-
-kf.predict(None, None, kf.F, kf.Q)
-print("Current Velocity:", kf.x[1])
-print("Current Position:", kf.x[0])
+#how many seconds worth of data do you need?            *** value can be altered ***
+seconds = 10
 
 
-# --------------------------------
-# Kalman Filter Position Update
-# --------------------------------
+for i in range(seconds):
+    print("\n--- TimeStep ", i , " ---\n")
 
-# PREDICT FUNCTION (bayesian prior)
-# Predicts the current position of the plane
-kf.update(kf.z, kf.R, kf.H)
-print("Updated Velocity:", kf.x[1])
-print("Updated Prediction:", kf.x[0])
+    #UPDATE SENSOR DATA FOR EACH TIMESTEP
 
 
-# ---------------------
-# Outputs
-# ---------------------
+    # --------------------------------
+    # FOR REAL DATA TRACKING PURPOSES
+    # --------------------------------
 
-#residual before update (assume kf is actively using GPS readings)
-residual = kf.y
-print("Position Residual: ", residual)
-
-# compute innovation covariance (S)
-
-# computer mahanalobis using residual and innovation covariance
+    # velocity = acceleration * time (updates every timestep)
+    real_v = v_i + a * dt
+    print("Real Velocity:", real_v)
 
 
-current_estimated_position = kf.x[0]
-current_estimated_velocity = kf.x[1]
+    #kinematics eqn (updates every timestep)
+    real_x = x_i + 0.5*(v_i + real_v)*dt
+    print("Real Position:", real_x)
+
+    #sensor data (updates every timestep)
+    irs_bias = np.random.normal(0,0.01)#random (small bias)
+    irs_x = real_x + irs_bias
+    gps_x = real_x + np.random.normal(0,5)   #gps_noise is randomized, can be unpredictable (for the sake of the MVP)
+    trn_x = real_x + np.random.normal(0,2)    #trn_noise is much more stable than gps_noise
+
+
+    kf.z = gps_x
+
+
+
+    #UPDATE KALMAN FILTER POSITION ESTIMATE FOR EACH TIMESTEP
+
+
+    # --------------------------------
+    # Position Estimate (Kinematics)
+    # --------------------------------
+
+    # PREDICT FUNCTION (bayesian prior)
+    # Predicts the current position of the plane based on previous state and motion of the plane
+        #(no sensor data, no corrections, just motion propogation)
+
+    kf.predict(None, None, kf.F, kf.Q)
+    print("Predicted Velocity:", kf.x[1])
+    print("Predicted Position:", kf.x[0])
+
+
+    # --------------------------------
+    # Kalman Filter Position Update
+    # --------------------------------
+
+    # UPDATE FUNCTION (bayesian prior)
+    # Updates the predicted position of the plane (from predict function above) based on sensor input
+        #(uses sensor data, residuals, uncertaintiy, and kalman gain)
+
+    kf.update(kf.z, kf.R, kf.H)
+    print("Updated Velocity:", kf.x[1])
+    print("Updated Position:", kf.x[0])
+
+
+    # --------------------------------
+    # CALCULATIONS (ANOMALY DETECTION)
+    # --------------------------------
+
+    #residual before update (assume kf is actively using GPS readings)
+    residual = kf.y
+    print("Position Residual: ", residual)
+
+    # compute innovation covariance (S)
+
+    # compute mahanalobis using residual and innovation covariance
+
+
+
+    #UPDATE VARIABLES FOR THE NEXT TIMESTEP
+
+
+
+    # -------------------------
+    # UPDATES FOR NEXT TIMESTEP
+    # -------------------------
+
+    x_i = real_x
+    v_i = real_v
+    #timestep remains the same, acceleration remains 0 for MVP as of May 10, 2026
+    #dt = 1
+    #a = 0
 
