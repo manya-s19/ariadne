@@ -60,7 +60,7 @@ kf.F = np.array([[1., dt],
 #set up Measurement  (H) - the part of the state the given sensor actually observes
 kf.H = np.array([[1., 0.]])
 
-
+#prior_innovation_covarience = kf.S
 
 #how many seconds worth of data do you need?            *** value can be altered ***
 seconds = 10
@@ -88,11 +88,17 @@ for i in range(seconds):
     #sensor data (updates every timestep)
     irs_bias = np.random.normal(0,0.01)#random (small bias)
     irs_x = real_x + irs_bias
-    gps_x = real_x + np.random.normal(0,5)   #gps_noise is randomized, can be unpredictable (for the sake of the MVP)
     trn_x = real_x + np.random.normal(0,2)    #trn_noise is much more stable than gps_noise
+    
+    #yay it works
+    if(i == 6):
+        gps_x += 500
+    else:
+        gps_x = real_x + np.random.normal(0,5)   #gps_noise is randomized, can be unpredictable (for the sake of the MVP)
+ 
 
 
-    kf.z = gps_x
+    kf.z = np.array([[gps_x]])
 
 
 
@@ -131,12 +137,17 @@ for i in range(seconds):
 
     #residual before update (assume kf is actively using GPS readings)
     residual = kf.y
+    transpose_residual = kf.y.T
     print("Position Residual: ", residual)
 
     # compute innovation covariance (S)
+    innovation_covarience = kf.S
+    print("Innovation Covariance: ", innovation_covarience)
 
     # compute mahanalobis using residual and innovation covariance
-
+    inverse_innovation_covarience = np.linalg.inv(innovation_covarience)
+    mahanalobis = np.sqrt(residual*inverse_innovation_covarience*transpose_residual)
+    print("Mahanalobis: ", mahanalobis)
 
 
     #UPDATE VARIABLES FOR THE NEXT TIMESTEP
@@ -149,6 +160,7 @@ for i in range(seconds):
 
     x_i = real_x
     v_i = real_v
+    #prior_innovation_covarience = innovation_covarience
     #timestep remains the same, acceleration remains 0 for MVP as of May 10, 2026
     #dt = 1
     #a = 0
