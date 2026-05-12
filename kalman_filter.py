@@ -13,6 +13,22 @@ dt = 1      #timestamp (every second)
 a = 0       #(for the sake of MVP) assume flight is cruising
 
 
+# ---------------------
+# SET UP SENSOR STATES
+# ---------------------
+
+# The possible sensor classifications
+    # in_kf                 no issues, sensor is used in kalman filter's estimation of the plane's state
+    # standby               inital state of TRN
+    # flagged               sensor is flagged for suspicious behaviour, still used in kf, but is monitored for changes
+    # eliminated            severe anomaly is detected, sensor eliminated from use, ATC notified (depending on spoofing/other issues)
+
+# Inital values of sensor states
+gps_state = "IN_KF"
+irs_state = "IN_KF"
+trn_state = "STANDBY"
+
+
 
 # ---------------------
 # SET UP KALMAN FILTER
@@ -78,12 +94,12 @@ for i in range(seconds):
 
     # velocity = acceleration * time (updates every timestep)
     real_v = v_i + a * dt
-    print("Real Velocity:", real_v)
+    print("Real Velocity:\t\t", real_v)
 
 
     #kinematics eqn (updates every timestep)
     real_x = x_i + 0.5*(v_i + real_v)*dt
-    print("Real Position:", real_x)
+    print("Real Position:\t\t", real_x)
 
     #sensor data (updates every timestep)
     irs_bias = np.random.normal(0,0.01)#random (small bias)
@@ -114,8 +130,8 @@ for i in range(seconds):
         #(no sensor data, no corrections, just motion propogation)
 
     kf.predict(None, None, kf.F, kf.Q)
-    print("Predicted Velocity:", kf.x[1])
-    print("Predicted Position:", kf.x[0])
+    print("Predicted Velocity:\t", kf.x[1])
+    print("Predicted Position:\t", kf.x[0])
 
 
     # --------------------------------
@@ -127,8 +143,8 @@ for i in range(seconds):
         #(uses sensor data, residuals, uncertaintiy, and kalman gain)
 
     kf.update(kf.z, kf.R, kf.H)
-    print("Updated Velocity:", kf.x[1])
-    print("Updated Position:", kf.x[0])
+    print("Updated Velocity:\t", kf.x[1])
+    print("Updated Position:\t", kf.x[0])
 
 
     # --------------------------------
@@ -138,16 +154,46 @@ for i in range(seconds):
     #residual before update (assume kf is actively using GPS readings)
     residual = kf.y
     transpose_residual = kf.y.T
-    print("Position Residual: ", residual)
+    print("Position Residual:\t", residual[0])
 
     # compute innovation covariance (S)
+        # what should the residual statistically be given the plane's previous states?
     innovation_covarience = kf.S
-    print("Innovation Covariance: ", innovation_covarience)
+    print("Innovation Covariance:\t", innovation_covarience[0])
 
     # compute mahanalobis using residual and innovation covariance
+        #how abnormal is the noise given the sensor data, state of the plane, kalman gain, residual, and the innovation covarience?
     inverse_innovation_covarience = np.linalg.inv(innovation_covarience)
     mahanalobis = np.sqrt(residual*inverse_innovation_covarience*transpose_residual)
-    print("Mahanalobis: ", mahanalobis)
+    print("Mahanalobis:\t\t", mahanalobis[0])
+
+
+
+    #UPDATE ANOMALY DETECTION AND SENSOR CLASSIFICATION LOGIC
+
+
+
+    # ----------------------
+    # SENSOR CLASSIFICATION         # only flags GPS rn, trn usage in kalman filter is not implemented as of May 11, 2026
+    # ----------------------
+
+    spoofing_threshold = 3
+
+    if mahanalobis < 3: #normal enough, can use GPS
+        gps_state = "IN_KF"
+        trn_state = "STANDBY"
+    elif mahanalobis >= 3 and mahanalobis <= 5: #use GPS in kalman filter, but monitor it for further anomalies
+        gps_state = "FLAGGED"
+        trn_state = "STANDBY"
+    else: #not normal, indicate spoofing/alarming_anomaly, inform ATS
+        gps_state = "ELIMINATED"
+        trn_state = "IN_KF"
+
+
+    print("GPS State:\t\t", gps_state)
+    print("TRN State:\t\t", trn_state)
+
+
 
 
     #UPDATE VARIABLES FOR THE NEXT TIMESTEP
