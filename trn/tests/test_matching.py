@@ -2,7 +2,7 @@ from terrain_matching import (
     sample_terrain_path,
     simulate_sensor_profile,
     compare_profiles,
-    detect_spoofing
+    detect_terrain_anomaly
 )
 
 print("=== Terrain Matching Tests ===")
@@ -18,7 +18,7 @@ measured = simulate_sensor_profile(expected)
 error = compare_profiles(expected, measured)
 
 print("Matching Route Error:", error)
-print(detect_spoofing(error))
+print(detect_terrain_anomaly(error))
 
 
 # Simulated spoofing scenario
@@ -31,4 +31,4 @@ spoofed = sample_terrain_path(
 spoof_error = compare_profiles(expected, spoofed)
 
 print("\nSpoofed Route Error:", spoof_error)
-print(detect_spoofing(spoof_error))
+print(detect_terrain_anomaly(spoof_error))
