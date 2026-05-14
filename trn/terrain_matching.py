@@ -74,7 +74,7 @@ def compare_profiles(expected_profile, measured_profile):
 
     return np.mean(differences)
 
-def detect_spoofing(error, threshold=50):
+def detect_terrain_anomaly(error, threshold=50):
     """
     Determine TRN status based on terrain comparison.
     """
