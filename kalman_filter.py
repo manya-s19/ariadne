@@ -2,8 +2,7 @@ import numpy as np
 #import filterpy
 from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
-from trn.terrain_matching import sample_terrain_path, simulate_sensor_profile, compare_profiles
-
+from trn.terrain_matching import sample_terrain_path, simulate_sensor_profile, compare_profiles, estimate_position_from_terrain
 
 
 # --------------------------------
@@ -39,6 +38,29 @@ gps_x = 0.0
 trn_x = 0.0
 
 sensor_x = gps_x
+
+# -----------------------------------
+# INITIALIZE FLIGHT PATH DATA
+# -----------------------------------
+start_lat = 24.4667
+start_lon = 54.3667
+end_lat = 25.1221
+end_lon = 56.3345
+
+#how many seconds worth of data do you need?            *** value can be altered ***
+seconds = 10 #45 mins total flight time
+
+#how the terrain looks for the entire flight path
+expected_terrain_map = sample_terrain_path(
+    start_lat,
+    start_lon,
+    end_lat,
+    end_lon,
+    seconds
+)
+
+#how the terrain looks over a period of time
+terrain_signature = []
 
 # ---------------------
 # SET UP KALMAN FILTER
@@ -92,9 +114,6 @@ kf.H = np.array([[1., 0.]])
 
 #prior_innovation_covarience = kf.S
 
-#how many seconds worth of data do you need?            *** value can be altered ***
-seconds = 10
-
 
 for i in range(seconds):
     print("\n--- TimeStep ", i , " ---\n")
@@ -115,10 +134,28 @@ for i in range(seconds):
     real_x = x_i + 0.5*(v_i + real_v)*dt
     print("Real Position:\t\t", real_x)
 
+    measured_elevation = simulate_sensor_profile(
+        [expected_terrain_map[i]]
+    )[0]
+    terrain_signature.append(measured_elevation)
+    print("Measured Elevation:\t\t", measured_elevation)
+    print("Expected Elevation:\t\t", expected_terrain_map[i])
+    if len(terrain_signature) > 3:
+        terrain_signature.pop(0)
+
     #sensor data (updates every timestep)
     irs_bias = np.random.normal(0,0.01)#random (small bias)
     irs_x = real_x + irs_bias
-    trn_x = real_x + np.random.normal(0,2)    #trn_noise is much more stable than gps_noise
+    #trn_x = + np.random.normal(0,2)    #trn_noise is much more stable than gps_noise
+    
+    trn_index, terrain_error = estimate_position_from_terrain(
+        expected_terrain_map,
+        terrain_signature
+    )
+
+    distance_per_step = (seconds * v_i) / len(expected_terrain_map)
+    trn_x = trn_index * distance_per_step
+
     
 
     #INJECT SPOOFING SCENARIO #1
@@ -133,6 +170,7 @@ for i in range(seconds):
         sensor_x = gps_x
         sensor_uncertainty = gps_uncertainty
     elif gps_state == "ELIMINATED" and trn_state == "IN_KF":
+        print("\t\t\t\t\tSwitched to TRN, Eliminated GPS")
         sensor_x = trn_x
         sensor_uncertainty = trn_uncertainty
     elif gps_state == "ELIMINATED" and trn_state == "ELIMINATED":

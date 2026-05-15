@@ -86,3 +86,27 @@ def detect_terrain_anomaly(error, threshold=50):
         return "WARNING: Terrain profile does not match expected route."
 
     return "Terrain profile matches expected route."
+
+def estimate_position_from_terrain(expected_profile,
+                                   measured_window):
+    """
+    Estimate aircraft position along route by finding
+    best terrain profile match.
+    """
+
+    window_size = len(measured_window)
+
+    best_error = float("inf")
+    best_index = 0
+
+    for i in range(len(expected_profile) - window_size + 1):
+
+        candidate = expected_profile[i:i+window_size]
+
+        error = compare_profiles(candidate, measured_window)
+
+        if error is not None and error < best_error:
+            best_error = error
+            best_index = i
+
+    return best_index, best_error
