@@ -1,5 +1,5 @@
 import numpy as np
-from terrain_lookup import get_elevation
+from .terrain_lookup import get_elevation
 
 
 def sample_terrain_path(start_lat, start_lon,

@@ -2,6 +2,9 @@ import numpy as np
 #import filterpy
 from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
+from trn.terrain_matching import sample_terrain_path, simulate_sensor_profile, compare_profiles
+
+
 
 # --------------------------------
 # FOR TESTING PURPOSES
@@ -28,7 +31,14 @@ gps_state = "IN_KF"
 irs_state = "IN_KF"
 trn_state = "STANDBY"
 
+# -----------------------------------
+# INITIALIZE SENSOR POSITION READINGS
+# -----------------------------------
+irs_x = 0.0
+gps_x = 0.0
+trn_x = 0.0
 
+sensor_x = gps_x
 
 # ---------------------
 # SET UP KALMAN FILTER
@@ -51,10 +61,13 @@ kf.x = np.array([[0.],
 position_uncertainty = 10**2        
 velocity_uncertainty = 100**2
 baseline_gps_uncertainty = 5**2
+baseline_trn_uncertainty = 2**2
+terrain_style = 1.0 #0.5 = accurate (extremely rocky), 1.0 = normal (mixed terrain), 2/3 = unreliable (flatlands/ocean)
 baseline_external_acceleration_uncertainty = 0.3**2
 
 #update this based on external factors later            *** values can be altered ***
 gps_uncertainty = baseline_gps_uncertainty
+trn_uncertainty = baseline_trn_uncertainty * terrain_style
 external_acceleration_uncertainty = baseline_external_acceleration_uncertainty
 
 #set up State Covariance Matrix (P) - kalman filter's estimate’s unreliability (position and velocity)
@@ -64,7 +77,8 @@ kf.P = np.array([[position_uncertainty, 0.],
                 [0., velocity_uncertainty]])
 
 #set up Measurement Noise Covarience (R) - unreliability of GPS position readings compared to true position
-kf.R = np.array([[gps_uncertainty]])
+sensor_uncertainty = gps_uncertainty
+kf.R = np.array([[sensor_uncertainty]])
 
 #set up Process Uncertainty (Q) - unreliability of state predictions (position and velocity) overtime due to unmodeled acceleration noise
 kf.Q = Q_discrete_white_noise(2, dt, external_acceleration_uncertainty)
@@ -106,16 +120,29 @@ for i in range(seconds):
     irs_x = real_x + irs_bias
     trn_x = real_x + np.random.normal(0,2)    #trn_noise is much more stable than gps_noise
     
-    #yay it works
+
+    #INJECT SPOOFING SCENARIO #1
     if(i == 6):
         gps_x += 500
     else:
         gps_x = real_x + np.random.normal(0,5)   #gps_noise is randomized, can be unpredictable (for the sake of the MVP)
+
+
+
+    if gps_state == "IN_KF" and trn_state == "STANDBY":
+        sensor_x = gps_x
+        sensor_uncertainty = gps_uncertainty
+    elif gps_state == "ELIMINATED" and trn_state == "IN_KF":
+        sensor_x = trn_x
+        sensor_uncertainty = trn_uncertainty
+    elif gps_state == "ELIMINATED" and trn_state == "ELIMINATED":
+        pass
+    else:
+        pass
  
-
-
-    kf.z = np.array([[gps_x]])
-
+    #Update matrices depending on sensor in use
+    kf.z = np.array([[sensor_x]])
+    kf.R = np.array([[sensor_uncertainty]])
 
 
     #UPDATE KALMAN FILTER POSITION ESTIMATE FOR EACH TIMESTEP
@@ -129,7 +156,7 @@ for i in range(seconds):
     # Predicts the current position of the plane based on previous state and motion of the plane
         #(no sensor data, no corrections, just motion propogation)
 
-    kf.predict(None, None, kf.F, kf.Q)
+    kf.predict()
     print("Predicted Velocity:\t", kf.x[1])
     print("Predicted Position:\t", kf.x[0])
 
@@ -142,7 +169,7 @@ for i in range(seconds):
     # Updates the predicted position of the plane (from predict function above) based on sensor input
         #(uses sensor data, residuals, uncertaintiy, and kalman gain)
 
-    kf.update(kf.z, kf.R, kf.H)
+    kf.update(kf.z)
     print("Updated Velocity:\t", kf.x[1])
     print("Updated Position:\t", kf.x[0])
 
@@ -177,8 +204,6 @@ for i in range(seconds):
     # SENSOR CLASSIFICATION         # only flags GPS rn, trn usage in kalman filter is not implemented as of May 11, 2026
     # ----------------------
 
-    spoofing_threshold = 3
-
     if mahanalobis < 3: #normal enough, can use GPS
         gps_state = "IN_KF"
         trn_state = "STANDBY"
@@ -210,4 +235,3 @@ for i in range(seconds):
     #timestep remains the same, acceleration remains 0 for MVP as of May 10, 2026
     #dt = 1
     #a = 0
-
