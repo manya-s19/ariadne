@@ -1,5 +1,5 @@
 import numpy as np
-from terrain_lookup import get_elevation
+from .terrain_lookup import get_elevation
 
 def get_checkPoints(start_lat, start_lon, end_lat, end_lon, num_samples):
     """
@@ -93,3 +93,43 @@ def detect_terrain_anomaly(error, threshold=50):
         return "WARNING: Terrain profile does not match expected route."
 
     return "Terrain profile matches expected route."
+
+def estimate_position_from_terrain(expected_map,
+                                   measured_signature,
+                                   predicted_index=None,
+                                   search_radius=2):
+    """
+    Estimate aircraft route index using terrain matching.
+
+    If predicted_index is provided, only search nearby.
+    """
+
+    signature_length = len(measured_signature)
+
+    # constrain search near KF prediction
+    if predicted_index is None:
+        start = 0
+        end = len(expected_map) - signature_length + 1
+    else:
+        start = max(0, predicted_index - search_radius)
+        end = min(
+            len(expected_map) - signature_length + 1,
+            predicted_index + search_radius + 1
+        )
+
+    best_index = start
+    lowest_error = float("inf")
+
+    for i in range(start, end):
+        candidate = expected_map[i:i+signature_length]
+
+        error = np.sum(
+            (np.array(candidate) - np.array(measured_signature)) ** 2
+        )
+
+        if error < lowest_error:
+            lowest_error = error
+            best_index = i
+
+
+    return best_index, lowest_error
