@@ -1,5 +1,4 @@
 import numpy as np
-#import filterpy
 from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
 from trn.terrain_matching import sample_terrain_path, simulate_sensor_profile, compare_profiles, estimate_position_from_terrain
@@ -75,7 +74,6 @@ kf.x = np.array([[0.],
                  [0.]])
 
 
-
 # -----------------------------
 # SET UP KALMAN FILTER MATRICES
 # -----------------------------
@@ -129,19 +127,15 @@ for i in range(seconds):
 
     # velocity = acceleration * time (updates every timestep)
     real_v = v_i + a * dt
-    #print("Real Velocity:\t\t", real_v)
 
 
     #kinematics eqn (updates every timestep)
     real_x = x_i + 0.5*(v_i + real_v)*dt
-    #print("Real Position:\t\t", real_x)
 
     measured_elevation = simulate_sensor_profile(
         [expected_terrain_map[i]]
     )[0]
     terrain_signature.append(measured_elevation)
-    #print("Measured Elevation:\t\t", measured_elevation)
-    #print("Expected Elevation:\t\t", expected_terrain_map[i])
 
     if len(terrain_signature) > 15:
         terrain_signature.pop(0)
@@ -164,9 +158,6 @@ for i in range(seconds):
 
     trn_x = trn_index * distance_per_step
 
-
-
-    #print("TRN X:\t\t", trn_x)
 
     #INJECT SPOOFING SCENARIO #1
     if(i == 6):
@@ -207,8 +198,6 @@ for i in range(seconds):
     kf.predict()
     predicted_position = kf.x[0][0]
     predicted_velocity = kf.x[1][0]
-    #print("Predicted Velocity:\t", predicted_velocity)
-    #print("Predicted Position:\t", predicted_position)
 
 
     # --------------------------------
@@ -222,8 +211,6 @@ for i in range(seconds):
     kf.update(kf.z)
     updated_position = kf.x[0][0]
     updated_velocity = kf.x[1][0]
-    #print("Updated Velocity:\t", updated_velocity)
-    #print("Updated Position:\t", updated_position)
 
 
     # --------------------------------
@@ -233,18 +220,15 @@ for i in range(seconds):
     #residual before update (assume kf is actively using GPS readings)
     residual = kf.y
     transpose_residual = kf.y.T
-    #print("Position Residual:\t", residual[0])
 
     # compute innovation covariance (S)
         # what should the residual statistically be given the plane's previous states?
     innovation_covarience = kf.S
-    #print("Innovation Covariance:\t", innovation_covarience[0])
 
     # compute mahanalobis using residual and innovation covariance
         #how abnormal is the noise given the sensor data, state of the plane, kalman gain, residual, and the innovation covarience?
     inverse_innovation_covarience = np.linalg.inv(innovation_covarience)
     mahanalobis = np.sqrt(residual*inverse_innovation_covarience*transpose_residual)
-    #print("Mahanalobis:\t\t", mahanalobis[0])
 
 
 
@@ -287,10 +271,6 @@ for i in range(seconds):
 
     x_i = real_x
     v_i = real_v
-    #prior_innovation_covarience = innovation_covarience
-    #timestep remains the same, acceleration remains 0 for MVP as of May 10, 2026
-    #dt = 1
-    #a = 0
 
     timestep_data = {
         "Real Position": real_x,
