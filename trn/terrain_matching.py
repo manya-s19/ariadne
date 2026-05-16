@@ -87,26 +87,42 @@ def detect_terrain_anomaly(error, threshold=50):
 
     return "Terrain profile matches expected route."
 
-def estimate_position_from_terrain(expected_profile,
-                                   measured_window):
+def estimate_position_from_terrain(expected_map,
+                                   measured_signature,
+                                   predicted_index=None,
+                                   search_radius=2):
     """
-    Estimate aircraft position along route by finding
-    best terrain profile match.
+    Estimate aircraft route index using terrain matching.
+
+    If predicted_index is provided, only search nearby.
     """
 
-    window_size = len(measured_window)
+    signature_length = len(measured_signature)
 
-    best_error = float("inf")
-    best_index = 0
+    # constrain search near KF prediction
+    if predicted_index is None:
+        start = 0
+        end = len(expected_map) - signature_length + 1
+    else:
+        start = max(0, predicted_index - search_radius)
+        end = min(
+            len(expected_map) - signature_length + 1,
+            predicted_index + search_radius + 1
+        )
 
-    for i in range(len(expected_profile) - window_size + 1):
+    best_index = start
+    lowest_error = float("inf")
 
-        candidate = expected_profile[i:i+window_size]
+    for i in range(start, end):
+        candidate = expected_map[i:i+signature_length]
 
-        error = compare_profiles(candidate, measured_window)
+        error = np.sum(
+            (np.array(candidate) - np.array(measured_signature)) ** 2
+        )
 
-        if error is not None and error < best_error:
-            best_error = error
+        if error < lowest_error:
+            lowest_error = error
             best_index = i
 
-    return best_index, best_error
+
+    return best_index, lowest_error

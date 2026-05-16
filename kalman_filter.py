@@ -3,6 +3,7 @@ import numpy as np
 from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
 from trn.terrain_matching import sample_terrain_path, simulate_sensor_profile, compare_profiles, estimate_position_from_terrain
+from tabulate import tabulate
 
 
 # --------------------------------
@@ -114,6 +115,7 @@ kf.H = np.array([[1., 0.]])
 
 #prior_innovation_covarience = kf.S
 
+timestep_data_collection = []
 
 for i in range(seconds):
     print("\n--- TimeStep ", i , " ---\n")
@@ -127,40 +129,48 @@ for i in range(seconds):
 
     # velocity = acceleration * time (updates every timestep)
     real_v = v_i + a * dt
-    print("Real Velocity:\t\t", real_v)
+    #print("Real Velocity:\t\t", real_v)
 
 
     #kinematics eqn (updates every timestep)
     real_x = x_i + 0.5*(v_i + real_v)*dt
-    print("Real Position:\t\t", real_x)
+    #print("Real Position:\t\t", real_x)
 
     measured_elevation = simulate_sensor_profile(
         [expected_terrain_map[i]]
     )[0]
     terrain_signature.append(measured_elevation)
-    print("Measured Elevation:\t\t", measured_elevation)
-    print("Expected Elevation:\t\t", expected_terrain_map[i])
-    if len(terrain_signature) > 3:
+    #print("Measured Elevation:\t\t", measured_elevation)
+    #print("Expected Elevation:\t\t", expected_terrain_map[i])
+
+    if len(terrain_signature) > 15:
         terrain_signature.pop(0)
 
     #sensor data (updates every timestep)
     irs_bias = np.random.normal(0,0.01)#random (small bias)
     irs_x = real_x + irs_bias
     #trn_x = + np.random.normal(0,2)    #trn_noise is much more stable than gps_noise
-    
-    trn_index, terrain_error = estimate_position_from_terrain(
-        expected_terrain_map,
-        terrain_signature
-    )
 
     distance_per_step = (seconds * v_i) / len(expected_terrain_map)
+
+    predicted_index = int(kf.x[0][0] / distance_per_step)
+
+    trn_index, terrain_error = estimate_position_from_terrain(
+        expected_terrain_map,
+        terrain_signature,
+        predicted_index=predicted_index,
+        search_radius=5
+    )
+
     trn_x = trn_index * distance_per_step
 
-    
+
+
+    #print("TRN X:\t\t", trn_x)
 
     #INJECT SPOOFING SCENARIO #1
     if(i == 6):
-        gps_x += 500
+        gps_x = real_x + 500
     else:
         gps_x = real_x + np.random.normal(0,5)   #gps_noise is randomized, can be unpredictable (for the sake of the MVP)
 
@@ -170,7 +180,7 @@ for i in range(seconds):
         sensor_x = gps_x
         sensor_uncertainty = gps_uncertainty
     elif gps_state == "ELIMINATED" and trn_state == "IN_KF":
-        print("\t\t\t\t\tSwitched to TRN, Eliminated GPS")
+        print("\t\t\t\t\t***Switched to TRN, Eliminated GPS\n\n")
         sensor_x = trn_x
         sensor_uncertainty = trn_uncertainty
     elif gps_state == "ELIMINATED" and trn_state == "ELIMINATED":
@@ -195,8 +205,10 @@ for i in range(seconds):
         #(no sensor data, no corrections, just motion propogation)
 
     kf.predict()
-    print("Predicted Velocity:\t", kf.x[1])
-    print("Predicted Position:\t", kf.x[0])
+    predicted_position = kf.x[0][0]
+    predicted_velocity = kf.x[1][0]
+    #print("Predicted Velocity:\t", predicted_velocity)
+    #print("Predicted Position:\t", predicted_position)
 
 
     # --------------------------------
@@ -208,8 +220,10 @@ for i in range(seconds):
         #(uses sensor data, residuals, uncertaintiy, and kalman gain)
 
     kf.update(kf.z)
-    print("Updated Velocity:\t", kf.x[1])
-    print("Updated Position:\t", kf.x[0])
+    updated_position = kf.x[0][0]
+    updated_velocity = kf.x[1][0]
+    #print("Updated Velocity:\t", updated_velocity)
+    #print("Updated Position:\t", updated_position)
 
 
     # --------------------------------
@@ -219,18 +233,18 @@ for i in range(seconds):
     #residual before update (assume kf is actively using GPS readings)
     residual = kf.y
     transpose_residual = kf.y.T
-    print("Position Residual:\t", residual[0])
+    #print("Position Residual:\t", residual[0])
 
     # compute innovation covariance (S)
         # what should the residual statistically be given the plane's previous states?
     innovation_covarience = kf.S
-    print("Innovation Covariance:\t", innovation_covarience[0])
+    #print("Innovation Covariance:\t", innovation_covarience[0])
 
     # compute mahanalobis using residual and innovation covariance
         #how abnormal is the noise given the sensor data, state of the plane, kalman gain, residual, and the innovation covarience?
     inverse_innovation_covarience = np.linalg.inv(innovation_covarience)
     mahanalobis = np.sqrt(residual*inverse_innovation_covarience*transpose_residual)
-    print("Mahanalobis:\t\t", mahanalobis[0])
+    #print("Mahanalobis:\t\t", mahanalobis[0])
 
 
 
@@ -248,15 +262,19 @@ for i in range(seconds):
     elif mahanalobis >= 3 and mahanalobis <= 5: #use GPS in kalman filter, but monitor it for further anomalies
         gps_state = "FLAGGED"
         trn_state = "STANDBY"
-    else: #not normal, indicate spoofing/alarming_anomaly, inform ATS
-        gps_state = "ELIMINATED"
-        trn_state = "IN_KF"
+    else:
+        if terrain_error < 500:   # confidence threshold
+            gps_state = "ELIMINATED"
+            trn_state = "IN_KF"
+        else:
+            gps_state = "FLAGGED"
 
 
-    print("GPS State:\t\t", gps_state)
-    print("TRN State:\t\t", trn_state)
-
-
+    print("Predicted Terrain Index:\t", predicted_index)
+    print("Matched Terrain Index:\t\t", trn_index)
+    print("Terrain Error:\t\t\t", terrain_error)
+    print("TRN Position:\t\t\t", trn_x)
+    print("")
 
 
     #UPDATE VARIABLES FOR THE NEXT TIMESTEP
@@ -273,3 +291,29 @@ for i in range(seconds):
     #timestep remains the same, acceleration remains 0 for MVP as of May 10, 2026
     #dt = 1
     #a = 0
+
+    timestep_data = {
+        "Real Position": real_x,
+        "Real Velocity": real_v,
+        "Measured Elevation": measured_elevation,
+        "Expected Elevation": expected_terrain_map[i],
+        "GPS Position": gps_x,
+        "TRN Position": trn_x,
+        "Predicted Position": predicted_position, 
+        "Predicted Velocity": predicted_velocity,
+        "Updated Position": updated_position,
+        "Updated Velocity": updated_velocity,
+        "Position Residual": residual[0][0],
+        "Innovation Covariance": innovation_covarience[0][0],
+        "Mahanalobis": mahanalobis[0][0],
+        "GPS State": gps_state,
+        "TRN State": trn_state
+    }
+    timestep_data_collection.append(timestep_data)
+    print(tabulate(timestep_data.items(), headers=["Variable", "Value"]))
+
+
+
+def return_timestep_data():
+    return timestep_data_collection
+
