@@ -20,6 +20,9 @@ def sample_terrain_path(start_lat, start_lon,
 
     elevations = []
     checkpoints = get_checkPoints(start_lat, start_lon, end_lat, end_lon, num_samples)
+    
+    latitudes = np.linspace(start_lat, end_lat, num_samples)
+    longitudes = np.linspace(start_lon, end_lon, num_samples)
 
     for lat, lon in zip(latitudes, longitudes):
 
