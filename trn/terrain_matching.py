@@ -1,6 +1,15 @@
 import numpy as np
 from terrain_lookup import get_elevation
 
+def get_checkPoints(start_lat, start_lon, end_lat, end_lon, num_samples):
+    """
+    Generate checkpoints along a path for terrain sampling.
+    """
+
+    latitudes = np.linspace(start_lat, end_lat, num_samples)
+    longitudes = np.linspace(start_lon, end_lon, num_samples)
+
+    return list(zip(latitudes, longitudes))
 
 def sample_terrain_path(start_lat, start_lon,
                         end_lat, end_lon,
@@ -10,9 +19,7 @@ def sample_terrain_path(start_lat, start_lon,
     """
 
     elevations = []
-
-    latitudes = np.linspace(start_lat, end_lat, num_samples)
-    longitudes = np.linspace(start_lon, end_lon, num_samples)
+    checkpoints = get_checkPoints(start_lat, start_lon, end_lat, end_lon, num_samples)
 
     for lat, lon in zip(latitudes, longitudes):
 
