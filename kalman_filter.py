@@ -273,19 +273,19 @@ for i in range(seconds):
     v_i = real_v
 
     timestep_data = {
-        "Real Position": real_x,
-        "Real Velocity": real_v,
-        "Measured Elevation": measured_elevation,
-        "Expected Elevation": expected_terrain_map[i],
-        "GPS Position": gps_x,
-        "TRN Position": trn_x,
-        "Predicted Position": predicted_position, 
+        "Real Position": real_x, #real position of the plane (kinematics)
+        "Real Velocity": real_v, #real velocity of the plane (kinematics)
+        "Measured Elevation": measured_elevation, #current elevation at timestep x
+        "Expected Elevation": expected_terrain_map[i], #expected elevation at timestep x
+        "GPS Position": gps_x, #GPS reading
+        "TRN Position": trn_x, #TRN reading
+        "Predicted Position": predicted_position, #IRS position is the predicted positon (uses physics)
         "Predicted Velocity": predicted_velocity,
-        "Updated Position": updated_position,
+        "Updated Position": updated_position, #Uses sensor data + IRS data to estimate positon of plane (aka. kalman filter position estimate)
         "Updated Velocity": updated_velocity,
-        "Position Residual": residual[0][0],
-        "Innovation Covariance": innovation_covarience[0][0],
-        "Mahanalobis": mahanalobis[0][0],
+        "Position Residual": residual[0][0], #difference between predicted position (IRS positon) and sensor position
+        "Innovation Covariance": innovation_covarience[0][0], #what the residual should statistically be given the state of the plane
+        "Mahanalobis": mahanalobis[0][0], #how alarming the anomaly is (basically tells us if there's anything sus with the GPS or sensors)
         "GPS State": gps_state,
         "TRN State": trn_state
     }
