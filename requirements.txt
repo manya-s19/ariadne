@@ -5,3 +5,6 @@ pydantic
 numpy
 filterpy
 tabulate
+dash
+plotly
+pandas
