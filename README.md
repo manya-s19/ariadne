@@ -1,5 +1,7 @@
 # Ariadne
 
+View the Dashboard here: https://ariadne-qlet.onrender.com
+
 Ariadne protects aircraft from GPS spoofing by validating navigation data against independent sources before flight paths are affected. Throughout the flight, the software creates validation checkpoints ("breadcrumbs") along the planned route. At each checkpoint, terrain signatures and position estimates are compared against expected values to identify spoofing attempts and validate navigation integrity.
 
 If GPS begins to diverge from the consensus of other sources, Ariadne gradually reduces trust in GPS. Persistent anomalies cause GPS to be removed entirely from the navigation solution, allowing the aircraft to continue using terrain-corrected inertial navigation.
